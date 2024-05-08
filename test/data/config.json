@@ -1,0 +1,9 @@
+{
+    "MeaningOfLife": 42,
+    "Cats": ["James", "Bond"],
+    "Pi": 3.14,
+    "Perfection": [ 6, 28, 496, 8128 ],
+    "BackToTheFuture": "1985-10-21T01:22:00Z",
+    "Secret" : "@managerprefix::projects/id/secrets/name-of-secret",
+    "TagValue" : "this should be resolved with the json tag"
+}

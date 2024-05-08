@@ -1,0 +1,4 @@
+{
+    "Cats": ["Billy", "Bob"],
+    "Secret" : "secret in local config file"
+}
