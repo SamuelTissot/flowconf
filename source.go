@@ -14,7 +14,7 @@ type Format string
 const (
 	unknown Format = "unknown"
 	Toml    Format = "toml"
-	Json           = "json"
+	Json    Format = "json"
 )
 
 // StaticSource represent a config input
