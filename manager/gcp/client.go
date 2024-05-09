@@ -119,6 +119,7 @@ func fetchFilteredSecrets(
 		},
 	)
 
+	cachedSecrets = map[string]string{}
 	for {
 		s, err := it.Next()
 		if errors.Is(err, iterator.Done) {
