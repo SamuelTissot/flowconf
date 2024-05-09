@@ -28,7 +28,7 @@ func (manager *SecretManager) Prefix() string {
 }
 
 func (manager *SecretManager) Secret(ctx context.Context, key string) (secret string, err error) {
-	c, err := Client(ctx, manager.clientOpts...)
+	c, err := NewClient(ctx, manager.clientOpts...)
 	if err != nil {
 		return "", err
 	}
