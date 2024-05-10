@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func ExampleBuilder_Build() {
+func ExampleBuilder_Build_fromStaticSource() {
 
 	type MyConfiguration struct {
 		MeaningOfLife   int
