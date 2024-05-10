@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"flowconf"
-	"flowconf/examples/fake"
+	"flowconf/examples/internal/fake"
 	"fmt"
 	"strings"
 )
