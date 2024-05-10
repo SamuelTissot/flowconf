@@ -1,4 +1,4 @@
-module flowconf
+module github.com/SamuelTissot/flowconf
 
 go 1.20
 

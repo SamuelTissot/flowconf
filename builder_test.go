@@ -2,8 +2,8 @@ package flowconf_test
 
 import (
 	"context"
-	"flowconf"
-	"flowconf/test"
+	"github.com/SamuelTissot/flowconf"
+	"github.com/SamuelTissot/flowconf/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"

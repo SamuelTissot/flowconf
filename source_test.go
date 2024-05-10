@@ -2,7 +2,7 @@ package flowconf
 
 import (
 	"bytes"
-	"flowconf/test"
+	"github.com/SamuelTissot/flowconf/test"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"testing"

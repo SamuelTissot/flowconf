@@ -1,8 +1,8 @@
 package flowconf_test
 
 import (
-	"flowconf"
 	"fmt"
+	"github.com/SamuelTissot/flowconf"
 	"io"
 	"strings"
 	"time"

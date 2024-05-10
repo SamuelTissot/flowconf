@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"flowconf"
-	"flowconf/examples/internal/fake"
 	"fmt"
+	"github.com/SamuelTissot/flowconf"
+	"github.com/SamuelTissot/flowconf/examples/internal/fake"
 	"strings"
 )
 

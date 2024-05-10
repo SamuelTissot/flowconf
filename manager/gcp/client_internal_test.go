@@ -3,7 +3,7 @@ package gcp
 import (
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"context"
-	"flowconf/test"
+	"github.com/SamuelTissot/flowconf/test"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
