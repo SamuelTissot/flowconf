@@ -1,0 +1,4 @@
+{
+    "environment" : "local",
+    "secret": "!! locally overriden secret value !!"
+}

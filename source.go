@@ -21,10 +21,10 @@ const (
 type StaticSource struct {
 	name   string
 	format Format
-	reader io.Reader
+	reader io.ReadCloser
 }
 
-func NewSource(name string, format Format, reader io.Reader) *StaticSource {
+func NewSource(name string, format Format, reader io.ReadCloser) *StaticSource {
 	return &StaticSource{
 		name:   name,
 		format: format,
@@ -49,7 +49,6 @@ func LoadSourcesWithOpener(opener Opener, filepaths ...string) ([]*StaticSource,
 		}
 		sources = append(sources, NewSource(filepath, detectFormat(filepath), f))
 
-		err = f.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to close opener, %w", err)
 		}

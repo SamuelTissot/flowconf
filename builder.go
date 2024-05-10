@@ -61,6 +61,11 @@ func buildFromSources(config any, sources []*StaticSource) error {
 		if err != nil {
 			return fmt.Errorf("failed to process source: %s, %w", source.name, err)
 		}
+
+		err = source.reader.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close source: %s, %s", source.name, err)
+		}
 	}
 
 	return nil
@@ -93,10 +98,16 @@ func resolveSecrets(ctx context.Context, config any, managers []SecretManager) e
 			return err
 		}
 
-		strConfig = strings.Replace(strConfig, sub.value, secret, 1)
+		escapedSecret := escape(secret)
+		strConfig = strings.Replace(strConfig, sub.value, escapedSecret, 1)
 	}
 
 	return parseJSON(config, strings.NewReader(strConfig))
+}
+
+func escape(str string) string {
+	str = strings.ReplaceAll(str, "\n", "\\n")
+	return strings.ReplaceAll(str, `"`, `\"`)
 }
 
 func configToJSON(config any) (string, error) {

@@ -3,6 +3,7 @@ package flowconf_test
 import (
 	"flowconf"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -44,8 +45,8 @@ TagValue = 'tag value'
 	// sources, err := flowconf.NewSourcesFromFilepaths("config.toml", "config-local.json", "another-config.json")
 	//
 	// HERE we will only build manually one source from an io.Reader
-	source := flowconf.NewSource("example.toml", flowconf.Toml, strings.NewReader(tomlSource))
-	overrideSource := flowconf.NewSource("override.json", flowconf.Json, strings.NewReader(overrideWith))
+	source := flowconf.NewSource("example.toml", flowconf.Toml, io.NopCloser(strings.NewReader(tomlSource)))
+	overrideSource := flowconf.NewSource("override.json", flowconf.Json, io.NopCloser(strings.NewReader(overrideWith)))
 
 	// create the builder
 	builder := flowconf.NewBuilder(source, overrideSource)

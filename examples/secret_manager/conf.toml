@@ -1,0 +1,14 @@
+## this value get overriden by the [[conf-local.json]] file
+environment = "prd"
+
+meaningOfLife = 42
+
+serviceAccountKey = "@prefix::project/id/service_account_key"
+
+text = """
+The quick brown
+fox jumps over
+the lazy dog.
+"""
+
+secret = "@prefix::project/id/secret"
