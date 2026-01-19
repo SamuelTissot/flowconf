@@ -4,11 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"io"
 	"reflect"
 	"strings"
+	"sync"
+
+	"github.com/BurntSushi/toml"
 )
+
+var builderWorkers = 10
+
+// SetBuilderWorkers set the amount of concurrent request to the secret manager
+func SetBuilderWorkers(n int) {
+	builderWorkers = n
+}
 
 type Builder struct {
 	sources  []*StaticSource
@@ -80,26 +89,71 @@ func parseJSON(config any, r io.Reader) error {
 	return json.NewDecoder(r).Decode(config)
 }
 
-func resolveSecrets(ctx context.Context, config any, managers []SecretManager) error {
+type replacement struct {
+	old string
+	new string
+}
+
+func resolveSecrets(
+	ctx context.Context,
+	config any,
+	managers []SecretManager,
+) error {
+	semaphore := make(chan struct{}, builderWorkers)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errGather := []string{}
+
 	strConfig, err := configToJSON(config)
 	if err != nil {
 		return err
 	}
 
 	subs := findSubstitutions(strConfig)
+	replacements := make([]replacement, 0, len(subs))
 	for _, sub := range subs {
 		manager, err := getManagerForPrefix(sub.managerPrefix, managers)
 		if err != nil {
 			return err
 		}
 
-		secret, err := manager.Secret(ctx, sub.managerKey)
-		if err != nil {
-			return err
-		}
+		wg.Add(1)
+		go func(s substitutions) {
+			defer wg.Done()
+			semaphore <- struct{}{}        // make sure we don't flood system
+			defer func() { <-semaphore }() // release worker
 
-		escapedSecret := escape(secret)
-		strConfig = strings.Replace(strConfig, sub.value, escapedSecret, 1)
+			secret, err := manager.Secret(ctx, s.managerKey)
+			if err != nil {
+				mu.Lock()
+				errGather = append(errGather, err.Error())
+				mu.Unlock()
+				return
+			}
+
+			escapedSecret := escape(secret)
+
+			mu.Lock()
+			replacements = append(
+				replacements,
+				replacement{old: s.value, new: escapedSecret},
+			)
+			mu.Unlock()
+		}(sub)
+	}
+
+	wg.Wait()
+
+	if len(errGather) > 0 {
+		return fmt.Errorf(
+			"failed to fetch some secrets, %s",
+			strings.Join(errGather, ", "),
+		)
+	}
+
+	// actually do the replacement
+	for _, r := range replacements {
+		strConfig = strings.Replace(strConfig, r.old, r.new, 1)
 	}
 
 	return parseJSON(config, strings.NewReader(strConfig))
