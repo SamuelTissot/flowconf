@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/BurntSushi/toml"
+	"golang.org/x/sync/errgroup"
 )
 
 var builderWorkers atomic.Int32
@@ -115,13 +116,10 @@ func resolveSecrets(
 	config any,
 	managers []SecretManager,
 ) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(int(builderWorkers.Load()))
 
-	semaphore := make(chan struct{}, builderWorkers.Load())
-	var wg sync.WaitGroup
 	var mu sync.Mutex
-	errGather := []string{}
 
 	strConfig, err := configToJSON(config)
 	if err != nil {
@@ -131,30 +129,22 @@ func resolveSecrets(
 	subs := findSubstitutions(strConfig)
 	replacements := make([]replacement, 0, len(subs))
 	for _, sub := range subs {
+		sub := sub
 		manager, err := getManagerForPrefix(sub.managerPrefix, managers)
 		if err != nil {
 			return err
 		}
 
-		wg.Add(1)
-		go func(s substitutions, m SecretManager) {
-			semaphore <- struct{}{}        // make sure we don't flood system
-			defer func() { <-semaphore }() // release worker
-			defer wg.Done()
-
+		g.Go(func() error {
 			select {
 			case <-ctx.Done():
-				return
+				return nil
 			default:
 			}
 
-			secret, err := m.Secret(ctx, s.managerKey)
+			secret, err := manager.Secret(ctx, sub.managerKey)
 			if err != nil {
-				cancel()
-				mu.Lock()
-				errGather = append(errGather, err.Error())
-				mu.Unlock()
-				return
+				return err
 			}
 
 			escapedSecret := escape(secret)
@@ -162,19 +152,15 @@ func resolveSecrets(
 			mu.Lock()
 			replacements = append(
 				replacements,
-				replacement{old: s.value, new: escapedSecret},
+				replacement{old: sub.value, new: escapedSecret},
 			)
 			mu.Unlock()
-		}(sub, manager)
+			return nil
+		})
 	}
 
-	wg.Wait()
-
-	if len(errGather) > 0 {
-		return fmt.Errorf(
-			"failed to fetch some secrets, %s",
-			strings.Join(errGather, ", "),
-		)
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	// actually do the replacement
