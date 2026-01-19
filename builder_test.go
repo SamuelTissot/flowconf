@@ -1,12 +1,13 @@
 package flowconf_test
 
 import (
-	"context"
+	"testing"
+	"time"
+
 	"github.com/SamuelTissot/flowconf"
 	"github.com/SamuelTissot/flowconf/test"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestBuilder_Build_fromStaticSource(t *testing.T) {
@@ -20,7 +21,10 @@ func TestBuilder_Build_fromStaticSource(t *testing.T) {
 		{
 			name: "one source toml",
 			sources: func() []*flowconf.StaticSource {
-				sources, err := flowconf.NewSourcesFromEmbeddedFileSystem(test.FileSystem, "data/config.toml")
+				sources, err := flowconf.NewSourcesFromEmbeddedFileSystem(
+					test.FileSystem,
+					"data/config.toml",
+				)
 				if err != nil {
 					t.Fatalf("failed to load sources from embedded filesystem")
 				}
@@ -43,7 +47,10 @@ func TestBuilder_Build_fromStaticSource(t *testing.T) {
 		{
 			name: "one source json",
 			sources: func() []*flowconf.StaticSource {
-				sources, err := flowconf.NewSourcesFromEmbeddedFileSystem(test.FileSystem, "data/config.json")
+				sources, err := flowconf.NewSourcesFromEmbeddedFileSystem(
+					test.FileSystem,
+					"data/config.json",
+				)
 				if err != nil {
 					t.Fatalf("failed to load sources from embedded filesystem")
 				}
@@ -132,7 +139,6 @@ func TestBuilder_Build_fromStaticSource(t *testing.T) {
 func TestBuilder_Build_fetchesSecretsFromSecretsManagers(t *testing.T) {
 	// /////////////////////// GIVEN ///////////////////////
 	var (
-		ctx              = context.Background()
 		configSourceFile = "data/config.toml"
 		prefix           = "managerprefix"                      // this prefix needs to be the same as in the config file [[test/data/config.toml]]
 		secretKey        = "projects/id/secrets/name-of-secret" // needs to be the same as in [[test/data/config.toml]]
@@ -152,12 +158,15 @@ func TestBuilder_Build_fetchesSecretsFromSecretsManagers(t *testing.T) {
 	)
 
 	// setup sources
-	sources, err := flowconf.NewSourcesFromEmbeddedFileSystem(test.FileSystem, configSourceFile)
+	sources, err := flowconf.NewSourcesFromEmbeddedFileSystem(
+		test.FileSystem,
+		configSourceFile,
+	)
 	assert.NoError(t, err)
 
 	// setup mock
 	managerMock.On("Prefix").Return(prefix).Once()
-	managerMock.On("Secret", ctx, secretKey).Return(secret, nil)
+	managerMock.On("Secret", mock.Anything, secretKey).Return(secret, nil)
 
 	// setup builder
 	builder := flowconf.NewBuilder(sources...)

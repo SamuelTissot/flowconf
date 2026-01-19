@@ -8,18 +8,23 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/BurntSushi/toml"
 )
 
-var builderWorkers = 10
+var builderWorkers atomic.Int32
+
+func init() {
+	builderWorkers.Store(10)
+}
 
 // SetBuilderWorkers set the amount of concurrent request to the secret manager
-func SetBuilderWorkers(n int) {
+func SetBuilderWorkers(n int32) {
 	if n < 1 {
 		n = 1
 	}
-	builderWorkers = n
+	builderWorkers.Store(n)
 }
 
 type Builder struct {
@@ -110,7 +115,10 @@ func resolveSecrets(
 	config any,
 	managers []SecretManager,
 ) error {
-	semaphore := make(chan struct{}, builderWorkers)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	semaphore := make(chan struct{}, builderWorkers.Load())
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	errGather := []string{}
@@ -130,12 +138,19 @@ func resolveSecrets(
 
 		wg.Add(1)
 		go func(s substitutions, m SecretManager) {
-			defer wg.Done()
 			semaphore <- struct{}{}        // make sure we don't flood system
 			defer func() { <-semaphore }() // release worker
+			defer wg.Done()
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 
 			secret, err := m.Secret(ctx, s.managerKey)
 			if err != nil {
+				cancel()
 				mu.Lock()
 				errGather = append(errGather, err.Error())
 				mu.Unlock()
