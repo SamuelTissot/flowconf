@@ -99,14 +99,8 @@ func fetchFilteredSecrets(
 	ctx context.Context,
 	parent string,
 	filter string,
-	nWorkers int,
 	opts []option.ClientOption,
 ) (cachedSecrets map[string]string, err error) {
-	semaphore := make(chan struct{}, nWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	errGather := []error{}
-
 	c, err := NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
@@ -135,29 +129,14 @@ func fetchFilteredSecrets(
 			return nil, fmt.Errorf("failed to get next iterator value, %w", err)
 		}
 
-		wg.Add(1)
-		go func(secretName string) {
-			defer wg.Done()
-			semaphore <- struct{}{}        // make sure we don't flood system
-			defer func() { <-semaphore }() // release worker
+		key := secretLatestVersionPath(s.GetName())
 
-			key := secretLatestVersionPath(secretName)
+		secret, err := fetchSecret(ctx, c, key)
+		if err != nil {
+			return nil, err
+		}
 
-			fmt.Printf("fetching secret : %s\n", key)
-
-			secret, err := fetchSecret(ctx, c, key)
-
-			mu.Lock()
-			if err != nil {
-				errGather = append(errGather, err)
-			} else {
-				cachedSecrets[key] = secret
-			}
-
-			mu.Unlock()
-		}(s.GetName())
-
-		wg.Wait()
+		cachedSecrets[key] = secret
 	}
 
 	return cachedSecrets, nil
