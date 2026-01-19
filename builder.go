@@ -4,11 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"io"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
+
+	"github.com/BurntSushi/toml"
+	"golang.org/x/sync/errgroup"
 )
+
+var builderWorkers atomic.Int32
+
+func init() {
+	builderWorkers.Store(10)
+}
+
+// SetBuilderWorkers set the amount of concurrent request to the secret manager
+func SetBuilderWorkers(n int32) {
+	if n < 1 {
+		n = 1
+	}
+	builderWorkers.Store(n)
+}
 
 type Builder struct {
 	sources  []*StaticSource
@@ -59,12 +77,20 @@ func buildFromSources(config any, sources []*StaticSource) error {
 		}
 
 		if err != nil {
-			return fmt.Errorf("failed to process source: %s, %w", source.name, err)
+			return fmt.Errorf(
+				"failed to process source: %s, %w",
+				source.name,
+				err,
+			)
 		}
 
 		err = source.reader.Close()
 		if err != nil {
-			return fmt.Errorf("failed to close source: %s, %s", source.name, err)
+			return fmt.Errorf(
+				"failed to close source: %s, %s",
+				source.name,
+				err,
+			)
 		}
 	}
 
@@ -80,26 +106,66 @@ func parseJSON(config any, r io.Reader) error {
 	return json.NewDecoder(r).Decode(config)
 }
 
-func resolveSecrets(ctx context.Context, config any, managers []SecretManager) error {
+type replacement struct {
+	old string
+	new string
+}
+
+func resolveSecrets(
+	ctx context.Context,
+	config any,
+	managers []SecretManager,
+) error {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(int(builderWorkers.Load()))
+
+	var mu sync.Mutex
+
 	strConfig, err := configToJSON(config)
 	if err != nil {
 		return err
 	}
 
 	subs := findSubstitutions(strConfig)
+	replacements := make([]replacement, 0, len(subs))
 	for _, sub := range subs {
+		sub := sub
 		manager, err := getManagerForPrefix(sub.managerPrefix, managers)
 		if err != nil {
 			return err
 		}
 
-		secret, err := manager.Secret(ctx, sub.managerKey)
-		if err != nil {
-			return err
-		}
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+			}
 
-		escapedSecret := escape(secret)
-		strConfig = strings.Replace(strConfig, sub.value, escapedSecret, 1)
+			secret, err := manager.Secret(ctx, sub.managerKey)
+			if err != nil {
+				return err
+			}
+
+			escapedSecret := escape(secret)
+
+			mu.Lock()
+			replacements = append(
+				replacements,
+				replacement{old: sub.value, new: escapedSecret},
+			)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	// actually do the replacement
+	for _, r := range replacements {
+		strConfig = strings.Replace(strConfig, r.old, r.new, 1)
 	}
 
 	return parseJSON(config, strings.NewReader(strConfig))
@@ -151,7 +217,10 @@ func findSubstitutions(str string) []substitutions {
 	return out
 }
 
-func getManagerForPrefix(prefix string, managers []SecretManager) (SecretManager, error) {
+func getManagerForPrefix(
+	prefix string,
+	managers []SecretManager,
+) (SecretManager, error) {
 	for _, manager := range managers {
 		if manager.Prefix() == prefix {
 			return manager, nil
