@@ -16,6 +16,9 @@ var builderWorkers = 10
 
 // SetBuilderWorkers set the amount of concurrent request to the secret manager
 func SetBuilderWorkers(n int) {
+	if n < 1 {
+		n = 1
+	}
 	builderWorkers = n
 }
 
