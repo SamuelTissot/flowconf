@@ -89,7 +89,7 @@ func fetchSecret(ctx context.Context, accessor SecretVersionAccessor, key string
 	}
 	resp, err := accessor.AccessSecretVersion(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("failed to access secrest: %s, %w", key, err)
+		return "", fmt.Errorf("failed to access secrets: %s, %w", key, err)
 	}
 
 	return string(resp.GetPayload().GetData()), nil
@@ -132,6 +132,9 @@ func fetchFilteredSecrets(
 		key := secretLatestVersionPath(s.GetName())
 
 		secret, err := fetchSecret(ctx, c, key)
+		if err != nil {
+			return nil, err
+		}
 
 		cachedSecrets[key] = secret
 	}
