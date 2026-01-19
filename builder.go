@@ -71,12 +71,20 @@ func buildFromSources(config any, sources []*StaticSource) error {
 		}
 
 		if err != nil {
-			return fmt.Errorf("failed to process source: %s, %w", source.name, err)
+			return fmt.Errorf(
+				"failed to process source: %s, %w",
+				source.name,
+				err,
+			)
 		}
 
 		err = source.reader.Close()
 		if err != nil {
-			return fmt.Errorf("failed to close source: %s, %s", source.name, err)
+			return fmt.Errorf(
+				"failed to close source: %s, %s",
+				source.name,
+				err,
+			)
 		}
 	}
 
@@ -121,12 +129,12 @@ func resolveSecrets(
 		}
 
 		wg.Add(1)
-		go func(s substitutions) {
+		go func(s substitutions, m SecretManager) {
 			defer wg.Done()
 			semaphore <- struct{}{}        // make sure we don't flood system
 			defer func() { <-semaphore }() // release worker
 
-			secret, err := manager.Secret(ctx, s.managerKey)
+			secret, err := m.Secret(ctx, s.managerKey)
 			if err != nil {
 				mu.Lock()
 				errGather = append(errGather, err.Error())
@@ -142,7 +150,7 @@ func resolveSecrets(
 				replacement{old: s.value, new: escapedSecret},
 			)
 			mu.Unlock()
-		}(sub)
+		}(sub, manager)
 	}
 
 	wg.Wait()
@@ -208,7 +216,10 @@ func findSubstitutions(str string) []substitutions {
 	return out
 }
 
-func getManagerForPrefix(prefix string, managers []SecretManager) (SecretManager, error) {
+func getManagerForPrefix(
+	prefix string,
+	managers []SecretManager,
+) (SecretManager, error) {
 	for _, manager := range managers {
 		if manager.Prefix() == prefix {
 			return manager, nil
